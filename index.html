@@ -82,6 +82,12 @@
     font-size:12.5px;line-height:1.5;
   }
   .loading{padding:60px;text-align:center;color:var(--slate);font-family:var(--font-mono);}
+  .demo-creds{
+    margin-top:20px;padding:12px 14px;background:var(--paper);border:1px dashed var(--bone);
+    border-radius:2px;font-size:12.5px;color:var(--slate);line-height:1.7;
+  }
+  .demo-creds-title{font-weight:600;letter-spacing:0.5px;text-transform:uppercase;font-size:10.5px;margin-bottom:4px;}
+  .demo-creds code{font-family:var(--font-mono);color:var(--ink);background:rgba(173,138,77,0.12);padding:1px 5px;border-radius:2px;}
 
   /* ---------- auth screen ---------- */
   .auth-shell{min-height:100vh;display:grid;grid-template-columns:1.1fr 1fr;}
@@ -191,6 +197,26 @@
     {id:'receivables', name:'Дебиторская задолженность', unit:'тыс. ₸'}
   ];
 
+  const DEMO_ORG_PASSWORD = 'demo123';
+  const DEMO_SEED = [
+    {orgName:'АО «Жезказган Энерго»', bin:'020340001845', email:'office@zhezenergo.kz', daysAgo:1,
+     values:{staff:'486', revenue:'4215600', taxes:'638200', payables:'312450', receivables:'289700'}},
+    {orgName:'КГП «Жезказган Су Арнасы»', bin:'991140002317', email:'info@su-arnasy.kz', daysAgo:2,
+     values:{staff:'264', revenue:'987300', taxes:'118760', payables:'204500', receivables:'96120'}},
+    {orgName:'ТОО «СарыАрка СтройМонтаж»', bin:'120540003692', email:'zakup@sarystroy.kz', daysAgo:3,
+     values:{staff:'138', revenue:'1264800', taxes:'176300', receivables:'84600'}},
+    {orgName:'ТОО «Улытау Транс Логистик»', bin:'150940004518', email:'dispatch@ulytau-trans.kz', daysAgo:5,
+     values:{staff:'92', revenue:'645200', taxes:'88400', payables:'51300'}},
+    {orgName:'ТОО «Жезқазған Нан»', bin:'080240001126', email:'buh@zheznan.kz', daysAgo:0,
+     values:{staff:'54', revenue:'312400', taxes:'41900', payables:'18750', receivables:'22340'}},
+    {orgName:'ИП «Абдрахманова А.К.»', bin:'870615400921', email:'a.abdrahmanova@mail.kz', daysAgo:4,
+     values:{staff:'7', revenue:'24850', taxes:'3120'}},
+    {orgName:'КГУ «Централизованная библиотечная система г. Жезказган»', bin:'000940005274', email:'cbs.zhez@gov.kz', daysAgo:6,
+     values:{staff:'31', taxes:'9840'}},
+    {orgName:'ТОО «МедФарм Жезказган»', bin:'190140006833', email:'reception@medfarm-zhez.kz', daysAgo:1,
+     values:{}}
+  ];
+
   const CHECK_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 12 9 18 20 6"></polyline></svg>';
   const TRASH_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>';
   const STAMP_SVG = '<svg class="stamp-seal" viewBox="0 0 160 160" width="140" height="140" aria-hidden="true">' +
@@ -240,6 +266,20 @@
     return new Date(ts).toLocaleString('ru-RU', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
   }
 
+  // ---------- demo seed ----------
+  async function seedDemoData(){
+    const now = Date.now();
+    DEMO_SEED.forEach(d => {
+      const ts = now - d.daysAgo * 864e5 - 3 * 36e5; // daysAgo + ~3 часа, чтобы даты выглядели естественно
+      orgs[d.email] = {orgName:d.orgName, bin:d.bin, email:d.email, password:DEMO_ORG_PASSWORD, createdAt: ts - 864e5};
+      const hasValues = Object.keys(d.values).length > 0;
+      submissions[d.email] = {values:d.values, updatedAt: hasValues ? ts : null};
+    });
+    await setStore('audit_orgs', orgs);
+    await setStore('audit_submissions', submissions);
+    await setStore('audit_seeded', true);
+  }
+
   // ---------- init ----------
   async function init(){
     orgs = await getStore('audit_orgs', {});
@@ -251,6 +291,10 @@
       indicators = storedIndicators;
     }
     submissions = await getStore('audit_submissions', {});
+    const seeded = await getStore('audit_seeded', false);
+    if(!seeded && Object.keys(orgs).length === 0){
+      await seedDemoData();
+    }
     render();
   }
 
@@ -303,6 +347,11 @@
             '</div>' +
             (authTab === 'login' ? loginFormHtml() : registerFormHtml()) +
             (authError ? '<div class="form-error">' + escapeHtml(authError) + '</div>' : '') +
+            '<div class="demo-creds">' +
+              '<div class="demo-creds-title">Демо-доступ</div>' +
+              '<div>Аудитор: <code>admin@audit.gov.kz</code> / <code>admin2026</code></div>' +
+              '<div>Организация: <code>office@zhezenergo.kz</code> / <code>demo123</code></div>' +
+            '</div>' +
           '</div>' +
         '</div>' +
       '</div>';
