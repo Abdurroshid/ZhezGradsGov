@@ -34,7 +34,7 @@
   }
   h1,h2{font-family:var(--font-display);font-weight:600;margin:0;}
   p{margin:0;}
-  button,input{font-family:inherit;font-size:15px;}
+  button,input,select{font-family:inherit;font-size:15px;}
   *:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
   @media (prefers-reduced-motion: reduce){
     *{transition:none !important;animation:none !important;}
@@ -47,6 +47,7 @@
     transition:background 180ms ease;
   }
   .btn-primary:hover{background:var(--ink-soft);}
+  .btn-primary:disabled{opacity:0.6;cursor:default;}
   .btn-full{width:100%;}
   .btn-small{padding:8px 14px;min-height:36px;font-size:14px;}
   .btn-secondary{
@@ -77,17 +78,17 @@
     margin-top:14px;padding:10px 12px;background:rgba(168,68,46,0.08);
     border-left:3px solid var(--rust);color:var(--rust);font-size:14px;border-radius:2px;
   }
+  .form-notice{
+    margin-top:14px;padding:10px 12px;background:rgba(46,107,82,0.08);
+    border-left:3px solid var(--green);color:var(--green);font-size:14px;border-radius:2px;
+  }
   .demo-note{
     max-width:960px;margin:0 auto;padding:18px 24px 32px;color:var(--slate);
     font-size:12.5px;line-height:1.5;
   }
   .loading{padding:60px;text-align:center;color:var(--slate);font-family:var(--font-mono);}
-  .demo-creds{
-    margin-top:20px;padding:12px 14px;background:var(--paper);border:1px dashed var(--bone);
-    border-radius:2px;font-size:12.5px;color:var(--slate);line-height:1.7;
-  }
-  .demo-creds-title{font-weight:600;letter-spacing:0.5px;text-transform:uppercase;font-size:10.5px;margin-bottom:4px;}
-  .demo-creds code{font-family:var(--font-mono);color:var(--ink);background:rgba(173,138,77,0.12);padding:1px 5px;border-radius:2px;}
+  .setup-steps{padding-left:18px;color:var(--slate);font-size:14px;line-height:1.75;margin:8px 0 0;}
+  .setup-steps code{font-family:var(--font-mono);color:var(--ink);background:rgba(173,138,77,0.12);padding:1px 5px;border-radius:2px;}
 
   /* ---------- auth screen ---------- */
   .auth-shell{min-height:100vh;display:grid;grid-template-columns:1.1fr 1fr;}
@@ -160,6 +161,10 @@
   .search-input{max-width:320px;}
   .add-indicator-form{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
   .add-indicator-form input{width:200px;min-height:40px;padding:9px 10px;}
+  .add-indicator-form select{
+    min-height:40px;padding:9px 10px;border:1px solid var(--bone);border-radius:2px;
+    background:#fff;color:var(--ink);
+  }
   .table-wrap{overflow-x:auto;background:var(--paper-raised);border:1px solid var(--bone);border-radius:3px;}
   table.registry-table{border-collapse:collapse;width:100%;min-width:640px;}
   .registry-table th,.registry-table td{
@@ -170,6 +175,12 @@
     font-weight:600;background:var(--paper);
   }
   .th-unit{display:block;font-family:var(--font-mono);font-size:10px;text-transform:none;letter-spacing:0;color:#9aa0aa;}
+  .th-head{display:flex;align-items:center;gap:8px;justify-content:space-between;}
+  .btn-col-del{
+    background:transparent;border:none;color:#B7BCC4;cursor:pointer;
+    font-size:16px;line-height:1;padding:3px 5px;border-radius:2px;flex-shrink:0;
+  }
+  .btn-col-del:hover{color:var(--rust);background:rgba(168,68,46,0.10);}
   .cell-num{font-family:var(--font-mono);text-align:right;}
   .cell-empty{color:#B7BCC4;}
   .row-org{font-weight:600;}
@@ -184,39 +195,23 @@
 <body>
 <div id="app"><div class="loading">Загрузка реестра…</div></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+  // ============================ КОНФИГУРАЦИЯ SUPABASE ============================
+  //  Заполните после создания проекта: Supabase Dashboard → Project Settings → API
+  //    • Project URL     → SUPABASE_URL
+  //    • anon public key → SUPABASE_ANON_KEY
+  //  anon-ключ можно спокойно публиковать: доступ к данным ограничен политиками RLS.
+  const SUPABASE_URL      = 'https://nshibdtzsjqttstlkikp.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_R6qvlFG3dfMpQ0Jm__zkJw_csJKj-c7';
+  // ==============================================================================
+
+  const IS_CONFIGURED = !/YOUR-PROJECT-REF|YOUR-ANON/.test(SUPABASE_URL + SUPABASE_ANON_KEY);
+  const sb = (IS_CONFIGURED && window.supabase)
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
+
   // ---------- constants ----------
-  const ADMIN_EMAIL = 'admin@audit.gov.kz';
-  const ADMIN_PASSWORD = 'admin2026';
-
-  const DEFAULT_INDICATORS = [
-    {id:'staff', name:'Среднесписочная численность сотрудников', unit:'чел.'},
-    {id:'revenue', name:'Выручка за отчётный период', unit:'тыс. ₸'},
-    {id:'taxes', name:'Уплаченные налоги и отчисления', unit:'тыс. ₸'},
-    {id:'payables', name:'Кредиторская задолженность', unit:'тыс. ₸'},
-    {id:'receivables', name:'Дебиторская задолженность', unit:'тыс. ₸'}
-  ];
-
-  const DEMO_ORG_PASSWORD = 'demo123';
-  const DEMO_SEED = [
-    {orgName:'АО «Жезказган Энерго»', bin:'020340001845', email:'office@zhezenergo.kz', daysAgo:1,
-     values:{staff:'486', revenue:'4215600', taxes:'638200', payables:'312450', receivables:'289700'}},
-    {orgName:'КГП «Жезказган Су Арнасы»', bin:'991140002317', email:'info@su-arnasy.kz', daysAgo:2,
-     values:{staff:'264', revenue:'987300', taxes:'118760', payables:'204500', receivables:'96120'}},
-    {orgName:'ТОО «СарыАрка СтройМонтаж»', bin:'120540003692', email:'zakup@sarystroy.kz', daysAgo:3,
-     values:{staff:'138', revenue:'1264800', taxes:'176300', receivables:'84600'}},
-    {orgName:'ТОО «Улытау Транс Логистик»', bin:'150940004518', email:'dispatch@ulytau-trans.kz', daysAgo:5,
-     values:{staff:'92', revenue:'645200', taxes:'88400', payables:'51300'}},
-    {orgName:'ТОО «Жезқазған Нан»', bin:'080240001126', email:'buh@zheznan.kz', daysAgo:0,
-     values:{staff:'54', revenue:'312400', taxes:'41900', payables:'18750', receivables:'22340'}},
-    {orgName:'ИП «Абдрахманова А.К.»', bin:'870615400921', email:'a.abdrahmanova@mail.kz', daysAgo:4,
-     values:{staff:'7', revenue:'24850', taxes:'3120'}},
-    {orgName:'КГУ «Централизованная библиотечная система г. Жезказган»', bin:'000940005274', email:'cbs.zhez@gov.kz', daysAgo:6,
-     values:{staff:'31', taxes:'9840'}},
-    {orgName:'ТОО «МедФарм Жезказган»', bin:'190140006833', email:'reception@medfarm-zhez.kz', daysAgo:1,
-     values:{}}
-  ];
-
   const CHECK_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 12 9 18 20 6"></polyline></svg>';
   const TRASH_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>';
   const STAMP_SVG = '<svg class="stamp-seal" viewBox="0 0 160 160" width="140" height="140" aria-hidden="true">' +
@@ -226,31 +221,14 @@
     '<text x="80" y="94" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9" letter-spacing="3" fill="var(--gold)">РЕЕСТР</text>' +
     '</svg>';
 
-  // ---------- storage (with in-memory fallback) ----------
-  const storageAvailable = typeof window.storage !== 'undefined' && window.storage !== null;
-  const memoryFallback = {};
-
-  async function getStore(key, fallback){
-    if(!storageAvailable) return memoryFallback[key] !== undefined ? memoryFallback[key] : fallback;
-    try{
-      const r = await window.storage.get(key, true);
-      return r ? JSON.parse(r.value) : fallback;
-    }catch(e){ return fallback; }
-  }
-  async function setStore(key, value){
-    memoryFallback[key] = value;
-    if(!storageAvailable) return;
-    try{ await window.storage.set(key, JSON.stringify(value), true); }
-    catch(e){ console.error('storage error', e); }
-  }
-
   // ---------- state ----------
-  let orgs = {};
-  let indicators = [];
-  let submissions = {};
-  let currentUser = null;     // {role:'org'|'admin', email, orgName, bin}
+  let indicators = [];                          // [{id,name,unit,type,sort_order}]
+  let currentUser = null;                       // {id,email,role:'org'|'admin',orgName,bin}
+  let orgSub = {values:{}, updatedAt:null};     // текущая организация: её данные
+  let adminRows = [];                           // аудитор: [{id,orgName,bin,email,values,updatedAt}]
   let authTab = 'login';
   let authError = null;
+  let authNotice = null;
   let adminAddingIndicator = false;
   let adminSearch = '';
 
@@ -265,43 +243,108 @@
     if(!ts) return '—';
     return new Date(ts).toLocaleString('ru-RU', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
   }
+  function isFilled(v){ return v !== undefined && v !== null && String(v).trim() !== ''; }
+  function translateError(err){
+    const raw = err && err.message ? err.message : String(err || '');
+    const m = raw.toLowerCase();
+    if(m.includes('already registered') || m.includes('already been registered')) return 'Организация с таким email уже зарегистрирована.';
+    if(m.includes('invalid login')) return 'Неверный email или пароль.';
+    if(m.includes('email not confirmed')) return 'Email не подтверждён. Проверьте почту и перейдите по ссылке.';
+    if(m.includes('password') && m.includes('6')) return 'Пароль должен содержать минимум 6 символов.';
+    if(m.includes('failed to fetch') || m.includes('networkerror')) return 'Нет связи с сервером. Проверьте подключение к интернету.';
+    return raw || 'Произошла ошибка. Попробуйте ещё раз.';
+  }
 
-  // ---------- demo seed ----------
-  async function seedDemoData(){
-    const now = Date.now();
-    DEMO_SEED.forEach(d => {
-      const ts = now - d.daysAgo * 864e5 - 3 * 36e5; // daysAgo + ~3 часа, чтобы даты выглядели естественно
-      orgs[d.email] = {orgName:d.orgName, bin:d.bin, email:d.email, password:DEMO_ORG_PASSWORD, createdAt: ts - 864e5};
-      const hasValues = Object.keys(d.values).length > 0;
-      submissions[d.email] = {values:d.values, updatedAt: hasValues ? ts : null};
+  // ---------- data layer ----------
+  async function fetchIndicators(){
+    const { data, error } = await sb.from('indicators')
+      .select('id,name,unit,type,sort_order').order('sort_order', {ascending:true});
+    if(error) throw error;
+    return data || [];
+  }
+
+  async function loadUserContext(user){
+    const { data, error } = await sb.from('profiles')
+      .select('org_name,bin,role').eq('id', user.id).maybeSingle();
+    if(error) throw error;
+    if(!data){
+      // профиль удалён аудитором либо ещё не создан — выходим
+      await sb.auth.signOut();
+      currentUser = null;
+      authNotice = 'Профиль организации не найден или был удалён администратором реестра.';
+      return;
+    }
+    currentUser = { id:user.id, email:user.email, role:data.role, orgName:data.org_name, bin:data.bin };
+  }
+
+  async function loadOrgData(){
+    indicators = await fetchIndicators();
+    const { data, error } = await sb.from('submissions')
+      .select('values,updated_at').eq('org_id', currentUser.id).maybeSingle();
+    if(error) throw error;
+    orgSub = data ? {values:data.values || {}, updatedAt:data.updated_at} : {values:{}, updatedAt:null};
+  }
+
+  async function loadAdminData(){
+    indicators = await fetchIndicators();
+    const [pRes, sRes] = await Promise.all([
+      sb.from('profiles').select('id,org_name,bin,email,created_at').eq('role','org').order('org_name'),
+      sb.from('submissions').select('org_id,values,updated_at')
+    ]);
+    if(pRes.error) throw pRes.error;
+    if(sRes.error) throw sRes.error;
+    const subMap = {};
+    (sRes.data || []).forEach(s => { subMap[s.org_id] = s; });
+    adminRows = (pRes.data || []).map(p => {
+      const s = subMap[p.id];
+      return { id:p.id, orgName:p.org_name, bin:p.bin, email:p.email,
+               values: s ? (s.values || {}) : {}, updatedAt: s ? s.updated_at : null };
     });
-    await setStore('audit_orgs', orgs);
-    await setStore('audit_submissions', submissions);
-    await setStore('audit_seeded', true);
   }
 
-  // ---------- init ----------
+  // ---------- init / routing ----------
   async function init(){
-    orgs = await getStore('audit_orgs', {});
-    let storedIndicators = await getStore('audit_indicators', null);
-    if(!storedIndicators){
-      indicators = DEFAULT_INDICATORS.slice();
-      await setStore('audit_indicators', indicators);
-    } else {
-      indicators = storedIndicators;
-    }
-    submissions = await getStore('audit_submissions', {});
-    const seeded = await getStore('audit_seeded', false);
-    if(!seeded && Object.keys(orgs).length === 0){
-      await seedDemoData();
-    }
-    render();
+    if(!IS_CONFIGURED){ renderConfigNeeded(); return; }
+    if(!sb){ app.innerHTML = '<div class="loading">Не удалось загрузить библиотеку Supabase.<br>Проверьте подключение к интернету и обновите страницу.</div>'; return; }
+    try{
+      const { data:{ session } } = await sb.auth.getSession();
+      if(session && session.user){ await loadUserContext(session.user); }
+    }catch(e){ console.error(e); }
+    await route();
   }
 
-  function render(){
-    if(!currentUser) return renderAuth();
-    if(currentUser.role === 'admin') return renderAdminDashboard();
-    return renderOrgDashboard();
+  async function route(){
+    if(!currentUser){ renderAuth(); return; }
+    try{
+      if(currentUser.role === 'admin'){ await loadAdminData(); renderAdminDashboard(); }
+      else { await loadOrgData(); renderOrgDashboard(); }
+    }catch(e){
+      console.error(e);
+      app.innerHTML = '<div class="loading">Ошибка загрузки данных:<br>' + escapeHtml(translateError(e)) + '</div>';
+    }
+  }
+
+  // ---------- setup screen ----------
+  function renderConfigNeeded(){
+    app.innerHTML =
+      '<div class="auth-shell">' +
+        '<div class="auth-side"><div class="auth-side-inner">' +
+          '<div class="eyebrow">НАСТРОЙКА BACKEND</div>' +
+          '<h1>Подключите Supabase</h1>' +
+          '<p>База данных ещё не указана. Впишите Project URL и anon-ключ в начале &lt;script&gt; в index.html.</p>' +
+          STAMP_SVG +
+        '</div></div>' +
+        '<div class="auth-card-wrap"><div class="auth-card">' +
+          '<h2 style="font-size:18px;margin-bottom:6px;">Что нужно сделать</h2>' +
+          '<ol class="setup-steps">' +
+            '<li>Создать проект на <code>supabase.com</code></li>' +
+            '<li>SQL Editor → выполнить <code>supabase/schema.sql</code></li>' +
+            '<li>Project Settings → API → скопировать Project URL и anon key</li>' +
+            '<li>Вставить их в <code>SUPABASE_URL</code> и <code>SUPABASE_ANON_KEY</code></li>' +
+          '</ol>' +
+          '<p style="margin-top:16px;font-size:13px;color:var(--slate);">Полная инструкция — в файле <code>README.md</code>.</p>' +
+        '</div></div>' +
+      '</div>';
   }
 
   // ---------- auth screen ----------
@@ -347,39 +390,27 @@
             '</div>' +
             (authTab === 'login' ? loginFormHtml() : registerFormHtml()) +
             (authError ? '<div class="form-error">' + escapeHtml(authError) + '</div>' : '') +
-            '<div class="demo-creds">' +
-              '<div class="demo-creds-title">Демо-доступ</div>' +
-              '<div>Аудитор: <code>admin@audit.gov.kz</code> / <code>admin2026</code></div>' +
-              '<div>Организация: <code>office@zhezenergo.kz</code> / <code>demo123</code></div>' +
-            '</div>' +
+            (authNotice ? '<div class="form-notice">' + escapeHtml(authNotice) + '</div>' : '') +
           '</div>' +
         '</div>' +
       '</div>';
   }
 
-  function switchAuthTab(tab){ authTab = tab; authError = null; render(); }
+  function switchAuthTab(tab){ authTab = tab; authError = null; authNotice = null; renderAuth(); }
 
   async function handleLoginSubmit(e){
     e.preventDefault();
     const f = e.target;
     const email = f.email.value.trim().toLowerCase();
     const password = f.password.value;
+    const btn = f.querySelector('button[type=submit]');
+    btn.disabled = true; btn.textContent = 'Вход…';
+    authError = null; authNotice = null;
 
-    if(email === ADMIN_EMAIL && password === ADMIN_PASSWORD){
-      currentUser = {role:'admin'};
-      authError = null;
-      render();
-      return;
-    }
-    const org = orgs[email];
-    if(org && org.password === password){
-      currentUser = {role:'org', email, orgName:org.orgName, bin:org.bin};
-      authError = null;
-      render();
-      return;
-    }
-    authError = 'Неверный email или пароль.';
-    render();
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if(error){ authError = translateError(error); renderAuth(); return; }
+    await loadUserContext(data.user);
+    await route();
   }
 
   async function handleRegisterSubmit(e){
@@ -389,43 +420,55 @@
     const bin = f.bin.value.trim();
     const email = f.email.value.trim().toLowerCase();
     const password = f.password.value;
+    const btn = f.querySelector('button[type=submit]');
+    btn.disabled = true; btn.textContent = 'Создание…';
+    authError = null; authNotice = null;
 
-    if(email === ADMIN_EMAIL || orgs[email]){
-      authError = 'Организация с таким email уже зарегистрирована.';
-      render();
-      return;
+    const { data, error } = await sb.auth.signUp({
+      email, password,
+      options:{ data:{ org_name: orgName, bin: bin } }
+    });
+    if(error){ authError = translateError(error); renderAuth(); return; }
+
+    if(data.session && data.user){
+      // подтверждение email отключено — сразу входим
+      await loadUserContext(data.user);
+      await route();
+    } else {
+      // требуется подтверждение по ссылке из письма
+      authTab = 'login';
+      authNotice = 'Профиль создан. Подтвердите email по ссылке из письма, затем войдите.';
+      renderAuth();
     }
-    orgs[email] = {orgName, bin, email, password, createdAt: Date.now()};
-    submissions[email] = submissions[email] || {values:{}, updatedAt:null};
-    await setStore('audit_orgs', orgs);
-    await setStore('audit_submissions', submissions);
-
-    currentUser = {role:'org', email, orgName, bin};
-    authError = null;
-    render();
   }
 
-  function handleLogout(){
+  async function handleLogout(){
+    await sb.auth.signOut();
     currentUser = null;
-    authError = null;
+    orgSub = {values:{}, updatedAt:null};
+    adminRows = [];
     adminAddingIndicator = false;
     adminSearch = '';
-    render();
+    authError = null; authNotice = null;
+    renderAuth();
   }
 
   // ---------- org dashboard ----------
   function renderOrgDashboard(){
-    const sub = submissions[currentUser.email] || {values:{}, updatedAt:null};
+    const sub = orgSub;
     const rows = indicators.map(ind => {
       const val = sub.values[ind.id];
-      const filled = val !== undefined && val !== null && String(val).trim() !== '';
+      const filled = isFilled(val);
+      const inputAttrs = ind.type === 'text'
+        ? 'type="text" placeholder="—" style="text-align:left"'
+        : 'type="number" step="0.01" min="0" placeholder="0"';
       return (
         '<div class="ledger-row">' +
           '<div class="ledger-label">' +
             '<label for="ind-' + ind.id + '">' + escapeHtml(ind.name) + '</label>' +
             '<span class="ledger-unit">' + escapeHtml(ind.unit) + '</span>' +
           '</div>' +
-          '<input class="ledger-input" type="number" step="0.01" min="0" id="ind-' + ind.id + '" name="' + ind.id + '" value="' + (filled ? escapeHtml(val) : '') + '" placeholder="0" />' +
+          '<input class="ledger-input" ' + inputAttrs + ' id="ind-' + ind.id + '" name="' + ind.id + '" value="' + (filled ? escapeHtml(val) : '') + '" />' +
           '<div class="stamp ' + (filled ? 'stamp-filled' : 'stamp-pending') + '" title="' + (filled ? 'Заполнено' : 'Не заполнено') + '">' +
             (filled ? CHECK_SVG : '') +
           '</div>' +
@@ -455,27 +498,40 @@
             '</div>' +
           '</form>' +
         '</main>' +
-        '<footer class="demo-note">Демо-режим: это рабочий прототип фронтенда. Данные хранятся в общем хранилище прототипа без серверной проверки доступа — для реального запуска нужен backend (например Node.js + PostgreSQL) с авторизацией на сервере.</footer>' +
+        '<footer class="demo-note">Данные хранятся в Supabase (PostgreSQL). Доступ ограничен политиками безопасности на уровне строк (RLS): другие организации не видят ваши данные, а вы — их.</footer>' +
       '</div>';
   }
 
   async function handleSaveSubmission(e){
     e.preventDefault();
     const form = e.target;
+    const btn = form.querySelector('button[type=submit]');
+    btn.disabled = true; btn.textContent = 'Сохранение…';
+
     const values = {};
-    indicators.forEach(ind => { values[ind.id] = form.elements[ind.id].value; });
-    submissions[currentUser.email] = {values, updatedAt: Date.now()};
-    await setStore('audit_submissions', submissions);
+    indicators.forEach(ind => {
+      const v = form.elements[ind.id].value.trim();
+      if(v !== '') values[ind.id] = v;
+    });
+
+    const { error } = await sb.from('submissions').upsert({
+      org_id: currentUser.id, values, updated_at: new Date().toISOString()
+    });
+    if(error){
+      alert('Ошибка сохранения: ' + translateError(error));
+      btn.disabled = false; btn.textContent = 'Сохранить данные';
+      return;
+    }
+    await loadOrgData();
     renderOrgDashboard();
   }
 
   // ---------- admin dashboard ----------
   function getFilteredOrgs(){
     const q = adminSearch.trim().toLowerCase();
-    return Object.values(orgs).filter(o => {
-      if(!q) return true;
-      return o.orgName.toLowerCase().includes(q) || (o.bin || '').toLowerCase().includes(q);
-    }).sort((a,b) => a.orgName.localeCompare(b.orgName, 'ru'));
+    return adminRows.filter(r =>
+      !q || r.orgName.toLowerCase().includes(q) || (r.bin || '').toLowerCase().includes(q)
+    );
   }
 
   function buildRegistryRowsHtml(filtered){
@@ -483,16 +539,14 @@
       return '<tr><td colspan="' + (indicators.length + 4) + '" class="empty-state">Реестр пуст. Ожидаем заявки от организаций.</td></tr>';
     }
     return filtered.map(o => {
-      const sub = submissions[o.email] || {values:{}, updatedAt:null};
-      const filledCount = indicators.filter(ind => {
-        const v = sub.values[ind.id];
-        return v !== undefined && v !== null && String(v).trim() !== '';
-      }).length;
+      const values = o.values || {};
+      const filledCount = indicators.filter(ind => isFilled(values[ind.id])).length;
       const pct = indicators.length ? Math.round(filledCount / indicators.length * 100) : 0;
       const cells = indicators.map(ind => {
-        const v = sub.values[ind.id];
-        const has = v !== undefined && v !== null && String(v).trim() !== '';
-        return '<td class="cell-num">' + (has ? escapeHtml(v) : '<span class="cell-empty">—</span>') + '</td>';
+        const v = values[ind.id];
+        const has = isFilled(v);
+        const cellCls = ind.type === 'text' ? '' : 'cell-num';
+        return '<td class="' + cellCls + '">' + (has ? escapeHtml(v) : '<span class="cell-empty">—</span>') + '</td>';
       }).join('');
       return (
         '<tr>' +
@@ -505,8 +559,8 @@
             '<div class="progress-track"><div class="progress-fill" style="width:' + pct + '%"></div></div>' +
             '<div class="progress-label">' + filledCount + '/' + indicators.length + '</div>' +
           '</td>' +
-          '<td class="row-updated">' + formatDate(sub.updatedAt) + '</td>' +
-          '<td><button class="btn-icon" title="Удалить организацию" onclick="handleDeleteOrg(\'' + o.email + '\')">' + TRASH_SVG + '</button></td>' +
+          '<td class="row-updated">' + formatDate(o.updatedAt) + '</td>' +
+          '<td><button class="btn-icon" title="Удалить организацию" onclick="handleDeleteOrg(\'' + o.id + '\')">' + TRASH_SVG + '</button></td>' +
         '</tr>'
       );
     }).join('');
@@ -514,24 +568,34 @@
 
   function renderAdminDashboard(){
     const cols = indicators.map(ind =>
-      '<th>' + escapeHtml(ind.name) + '<span class="th-unit">' + escapeHtml(ind.unit) + '</span></th>'
+      '<th>' +
+        '<div class="th-head">' +
+          '<span>' + escapeHtml(ind.name) + '</span>' +
+          '<button class="btn-col-del" title="Удалить столбец" onclick="handleDeleteIndicator(\'' + escapeHtml(ind.id) + '\')">×</button>' +
+        '</div>' +
+        '<span class="th-unit">' + escapeHtml(ind.unit) + '</span>' +
+      '</th>'
     ).join('');
 
     const addForm = adminAddingIndicator
       ? '<form class="add-indicator-form" onsubmit="handleAddIndicator(event)">' +
-          '<input name="name" placeholder="Название показателя" required />' +
-          '<input name="unit" placeholder="Ед. изм." required style="width:110px" />' +
+          '<input name="name" placeholder="Название столбца" required />' +
+          '<input name="unit" placeholder="Ед. изм. (необяз.)" style="width:150px" />' +
+          '<select name="type">' +
+            '<option value="number">Число</option>' +
+            '<option value="text">Текст</option>' +
+          '</select>' +
           '<button type="submit" class="btn-primary btn-small">Добавить</button>' +
           '<button type="button" class="btn-ghost btn-small" onclick="toggleAddIndicator(false)">Отмена</button>' +
         '</form>'
-      : '<button class="btn-secondary" onclick="toggleAddIndicator(true)">+ Добавить показатель</button>';
+      : '<button class="btn-secondary" onclick="toggleAddIndicator(true)">+ Добавить столбец</button>';
 
     app.innerHTML =
       '<div class="shell shell-admin">' +
         '<header class="topbar topbar-ink">' +
           '<div>' +
             '<div class="admin-title">Панель аудита</div>' +
-            '<div class="admin-meta">' + Object.keys(orgs).length + ' организаций в реестре</div>' +
+            '<div class="admin-meta">' + adminRows.length + ' организаций в реестре</div>' +
           '</div>' +
           '<button class="btn-ghost btn-ghost-light" onclick="handleLogout()">Выйти</button>' +
         '</header>' +
@@ -547,7 +611,7 @@
             '</table>' +
           '</div>' +
         '</main>' +
-        '<footer class="demo-note">Демо-режим: проверка ролей выполняется на клиенте, а не на сервере. Для реального запуска нужен backend с серверной авторизацией и базой данных.</footer>' +
+        '<footer class="demo-note">Роли и доступ проверяются на сервере Supabase политиками RLS. Аудитор видит все организации; организация — только свою строку.</footer>' +
       '</div>';
   }
 
@@ -557,27 +621,52 @@
     if(tbody) tbody.innerHTML = buildRegistryRowsHtml(getFilteredOrgs());
   }
 
-  function toggleAddIndicator(state){ adminAddingIndicator = state; render(); }
+  function toggleAddIndicator(state){ adminAddingIndicator = state; renderAdminDashboard(); }
 
   async function handleAddIndicator(e){
     e.preventDefault();
     const f = e.target;
+    const btn = f.querySelector('button[type=submit]');
+    if(btn.disabled) return;                 // защита от двойного клика — иначе создаются дубли
     const name = f.name.value.trim();
     const unit = f.unit.value.trim();
+    const type = f.type ? f.type.value : 'number';
     if(!name) return;
-    indicators.push({id: 'ind_' + Date.now(), name, unit: unit || '—'});
-    await setStore('audit_indicators', indicators);
+    btn.disabled = true; btn.textContent = 'Добавление…';
+
+    const id = 'ind_' + Date.now();
+    const sortOrder = indicators.reduce((m,i) => Math.max(m, i.sort_order || 0), 0) + 1;
+
+    const { error } = await sb.from('indicators').insert({ id, name, unit, type, sort_order: sortOrder });
+    if(error){
+      alert('Ошибка добавления столбца: ' + translateError(error));
+      btn.disabled = false; btn.textContent = 'Добавить';
+      return;
+    }
     adminAddingIndicator = false;
-    render();
+    await loadAdminData();
+    renderAdminDashboard();
   }
 
-  async function handleDeleteOrg(email){
-    if(!confirm('Удалить организацию из реестра? Это действие нельзя отменить.')) return;
-    delete orgs[email];
-    delete submissions[email];
-    await setStore('audit_orgs', orgs);
-    await setStore('audit_submissions', submissions);
-    render();
+  async function handleDeleteIndicator(id){
+    const ind = indicators.find(i => i.id === id);
+    const name = ind ? ind.name : id;
+    if(!confirm('Удалить столбец «' + name + '» из реестра?\n\nОн исчезнет и у всех организаций. Уже внесённые в него значения показываться не будут.')) return;
+
+    const { error } = await sb.from('indicators').delete().eq('id', id);
+    if(error){ alert('Ошибка удаления столбца: ' + translateError(error)); return; }
+    await loadAdminData();
+    renderAdminDashboard();
+  }
+
+  async function handleDeleteOrg(id){
+    if(!confirm('Удалить организацию из реестра? Данные будут удалены безвозвратно.')) return;
+    const del1 = await sb.from('submissions').delete().eq('org_id', id);
+    const del2 = await sb.from('profiles').delete().eq('id', id);
+    const err = del1.error || del2.error;
+    if(err){ alert('Ошибка удаления: ' + translateError(err)); return; }
+    await loadAdminData();
+    renderAdminDashboard();
   }
 
   init();
